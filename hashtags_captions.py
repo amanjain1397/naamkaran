@@ -126,14 +126,22 @@ def create_ngrams_list_captions(sentence):
     trigrams = generate_ngrams(sentence, 3)
     bigrams = generate_ngrams(sentence, 2)
     unigrams = generate_ngrams(sentence, 1)
-    return list(set(['-'.join(gram.split()) for gram in trigrams])) + \
-            list(set(['-'.join(gram.split()) for gram in bigrams])) + \
-            list(set(['-'.join(gram.split()) for gram in unigrams]))
+    return list(set([' '.join(gram.split()) for gram in trigrams])) + \
+            list(set([' '.join(gram.split()) for gram in bigrams])) + \
+            list(set([' '.join(gram.split()) for gram in unigrams]))
 
 def produce_captions_from_mongo(list_keywords, size = 10):
     try:
-        cursor = popular_caption.find({'keyword' : {'$in' : list_keywords}}, {'_id' : 0, 'captions' : 1})
-        all_captions_list = sum([doc['captions'] for doc in cursor], [])
+        cursor = popular_caption.find({'keyword' : {'$in' : list_keywords}}, {'_id' : 0, 'keyword' : 1, 'captions' : 1})
+        caption_docs = [doc for doc in cursor]
+
+        sorted_caption_docs = sorted(caption_docs, key = lambda doc : doc['keyword'].count(' '), reverse = True)
+        fetched_sorted_keywords = [doc['keyword'] for doc in sorted_caption_docs]
+        if fetched_sorted_keywords[0].count(' ') >= 1 and len(sorted_caption_docs[0]['captions']) >= size:
+            all_captions_list = sorted_caption_docs[0]['captions']
+        else:
+            all_captions_list = sum([doc['captions'] for doc in sorted_caption_docs], [])
+
         if all_captions_list:
             try:
                 mongo_captions_list = list(np.random.choice(all_captions_list, size, False))
@@ -141,7 +149,8 @@ def produce_captions_from_mongo(list_keywords, size = 10):
                 mongo_captions_list = []
         else:
             mongo_captions_list = []
-    except Exceptions as e:
+    except Exception as e:
+        print(e)
         mongo_captions_list = []
     return mongo_captions_list
 
@@ -168,6 +177,7 @@ def produce_captions(list_keywords, hashtag_captions_dict, size = 10, elastic_en
         try:
             captions_list += produce_captions_from_mongo(n_grams_caption_keywords, size = size)
         except Exception as e:
+            print(e)
             pass
         if len(captions_list) < size:
             # Getting captions from Elastic Search Service
@@ -238,7 +248,7 @@ def lambda_handler(event, context):
     
 if __name__ == "__main__":
 
-    list_keywords = ['woodpecker', 'zeppelin'] # param
+    list_keywords = ['young' , 'adult'] # param
     size = 10 # param
     show_post_count = False # param
     show_captions = True # param
